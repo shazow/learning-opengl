@@ -1,6 +1,6 @@
 SLUG = learning-opengl
 
-all: preview
+all: toc
 
 env:;
 ifndef LEANPUB_API_KEY
@@ -19,3 +19,11 @@ endif
 # TODO: Single page preview?
 #manuscript/%: env
 #	curl -d "api_key=${LEANPUB_API_KEY}" -d "@$@" "https://leanpub.com/$(SLUG)/preview/single.json"
+
+toc: manuscript/README.md
+
+manuscript/README.md: manuscript/Book.txt
+	./mktoc $< > "$@"
+
+
+.PHONY: toc preview env

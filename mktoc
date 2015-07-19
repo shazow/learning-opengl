@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+
+urlprefix="https://github.com/shazow/learning-opengl/blob/master"
+
+echo "# Table of Contents"
+echo ""
+
+while read line; do
+    path="manuscript/$line"
+    title="$(grep '^# *' -m1 $path | cut -b3-)"
+    echo "* [${title}]($urlprefix/${path})"
+done < "$1"

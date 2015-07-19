@@ -1,14 +1,14 @@
-## Shader Variables
+# Shader Variables
 
 Ref: https://en.wikibooks.org/wiki/OpenGL_Programming/Modern_OpenGL_Tutorial_03
 
 
-### Attribute
+## Attribute
 
 `attribute` variables we can change for every vertex array that we render.
 
 
-### Uniform
+## Uniform
 
 `uniform` variables contain global information that is the same across all
 vertex arrays. This can be used to create a global opacity value, or a lighting
@@ -16,7 +16,7 @@ angle. `uniform` variables are set with `Uniform*` functions depending on the
 type.
 
 
-### Varying
+## Varying
 
 `varying` variables can be used to communicate from the vertex shader into the
 fragment shader.
