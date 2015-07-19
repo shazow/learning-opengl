@@ -1,26 +1,4 @@
-# Learning OpenGL Notes
-
-I'm learning OpenGL using Go 1.5 and `golang.org/x/mobile/gl`, these are my
-notes.
-
-Examples should be mostly-compilable, but sometimes they deviate from the actual
-Go API into an imaginary variant that is closer to the underlying C API (which
-most GL libraries are based on). The goal is to understand how OpenGL works on
-in general, not to learn about quirks of a specific library.
-
-This may be a good primer to go over before diving into a language-specific
-OpenGL tutorial.
-
-References:
-
-- http://docs.gl/ (fast OpenGL API lookup)
-- https://en.wikibooks.org/wiki/OpenGL_Programming
-- https://open.gl/ and https://github.com/zuck/opengl-examples
-- http://www.opengl-tutorial.org/
-- https://stackoverflow.com/questions/7536956/opengl-es-2-0-shader-best-practices
-
-
-## Shapes
+# Shapes
 
 A vertex is the coordinate of a point. In a three-dimensional context, a vertex
 might look like {1, 2, 3} for x, y, z coordinates. A line is made of two
@@ -66,5 +44,3 @@ Because it's a single array, not an array of three three-point arrays, we need
 to tell GL how to interpret the array (is it a bunch of 2D coordinates? 3D? is
 there extra texture data?). When we bind our vertices variable into a shader
 attribute, we pass in a size value that tells it how to treat that data.
-
-

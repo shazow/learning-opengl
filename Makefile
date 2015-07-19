@@ -22,7 +22,7 @@ endif
 
 toc: manuscript/README.md
 
-manuscript/README.md: manuscript/Book.txt
+manuscript/README.md: manuscript/Book.txt manuscript/ch*.md
 	./mktoc $< > "$@"
 
 

@@ -1,7 +1,7 @@
 # Table of Contents
 
 * [Preface](https://github.com/shazow/learning-opengl/blob/master/manuscript/preface.md)
-* [Learning OpenGL Notes](https://github.com/shazow/learning-opengl/blob/master/manuscript/ch01-shapes.md)
+* [Shapes](https://github.com/shazow/learning-opengl/blob/master/manuscript/ch01-shapes.md)
 * [Shaders](https://github.com/shazow/learning-opengl/blob/master/manuscript/ch02-shaders.md)
 * [Rendering Shaders](https://github.com/shazow/learning-opengl/blob/master/manuscript/ch03-rendering.md)
 * [Shader Variables](https://github.com/shazow/learning-opengl/blob/master/manuscript/ch04-variables.md)
