@@ -1,1 +1,9 @@
-chapter1.md
+preface.md
+ch01-shapes.md
+ch02-shaders.md
+ch03-rendering.md
+ch04-variables.md
+ch05-textures.md
+ch06-lighting.md
+ch07-objects.md
+appendix.md
