@@ -1,3 +1,6 @@
+[!https://img.shields.io/badge/license-CC%20BY--NC%20-green.svg](#license)
+
+
 # Learning OpenGL
 
 I'm learning OpenGL using Go 1.5 and `golang.org/x/mobile/gl`, these are my
@@ -20,15 +23,24 @@ References:
 - https://stackoverflow.com/questions/7536956/opengl-es-2-0-shader-best-practices
 
 
-## Download as a book
+## Reading
 
-I'm considering publishing these notes as a short book on Leanpub so you can
-read it from the comfort of your Kindle or favourite ebook reader.
+- One big fat Markdown file (best for skimming):
+  [combined.md](https://github.com/shazow/learning-opengl/blob/master/combined.md)
 
-Interested? Go here: https://leanpub.com/learning-opengl
+- Separate chapters in Markdown:
+  [manuscript/](https://github.com/shazow/learning-opengl/tree/master/manuscript)
+
+- MOBI (for Kindles), EPUB, and PDF: https://leanpub.com/learning-opengl
 
 
 ## Corrections
 
 See something that is incorrect or confusing? Please open an issue or make a
-pull request with improvements.
+pull request with improvements. Please make the edits in the separate chapters,
+not the combined file.
+
+
+## License
+
+[Creative Commons Attribution-NonCommercial 4.0](http://creativecommons.org/licenses/by-nc/4.0/)

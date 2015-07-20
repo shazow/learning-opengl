@@ -1,6 +1,8 @@
 SLUG = learning-opengl
 
-all: toc
+BOOKFILES = $(filter-out */README.md,*/Subset.txt,manuscript/*)
+
+all: toc combined.md
 
 env:;
 ifndef LEANPUB_API_KEY
@@ -10,20 +12,19 @@ endif
 preview: env
 	curl -d "api_key=${LEANPUB_API_KEY}" "https://leanpub.com/$(SLUG)/preview.json"
 
-preview.pdf: env manuscript/
+preview.pdf: env
 ifndef LEANPUB_PREVIEW_PDF
 	$(error No LEANPUB_PREVIEW_PDF defined in env)
 endif
 	curl -L "${LEANPUB_PREVIEW_PDF}" -o preview.pdf
 
-# TODO: Single page preview?
-#manuscript/%: env
-#	curl -d "api_key=${LEANPUB_API_KEY}" -d "@$@" "https://leanpub.com/$(SLUG)/preview/single.json"
-
 toc: manuscript/README.md
 
-manuscript/README.md: manuscript/Book.txt manuscript/ch*.md
-	./mktoc $< > "$@"
+manuscript/README.md: $(BOOKFILES)
+	./mkbook < manuscript/Book.txt > "$@"
+
+combined.md: $(BOOKFILS)
+	echo "title.md" | cat - manuscript/Book.txt | PREFIX="manuscript/" ./mkbook > "$@"
 
 
 .PHONY: toc preview env

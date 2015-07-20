@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+
+usage() {
+    echo "Combine a chaptered book files into a single markdown file."
+    echo "PREFIX="somepath/" Usage: ${0} [toc|full] < manuscript/Book.txt"
+}
+
+enheader() {
+    sed 's/^#/##/'
+}
+
+toc() {
+    echo "# Table of Contents"
+    echo ""
+
+    while read line; do
+        local path="${PREFIX}${line}"
+        local title="$(grep '^# *' -m1 ${path} | cut -b3-)"
+        echo "* [${title}](${path})"
+    done
+}
+
+main() {
+    set -eo pipefail; [[ "$TRACE" ]] && set -x
+
+    declare mode="$1"
+    if [[ "${1:0:1}" == "-" ]]; then
+        usage
+        exit 1
+    fi
+
+    if [[ "${mode}" == "toc" ]]; then
+        toc
+        exit 0;
+    fi
+
+    read titlepath
+    cat "${PREFIX}${titlepath}"
+
+    while read path; do
+        echo ""
+        echo ""
+        cat "${PREFIX}${path}" | enheader
+    done
+}
+
+[[ "$0" == "$BASH_SOURCE" ]] && main "$@"

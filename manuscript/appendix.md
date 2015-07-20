@@ -92,3 +92,8 @@ Ref:
 Quaternions *units* are used to represent rotation...
 
 TODO: ...
+
+
+## Model Animation
+
+Ref: http://wiki.polycount.com/wiki/Limb_Topology

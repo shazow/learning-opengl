@@ -19,5 +19,3 @@ References:
 - http://www.opengl-tutorial.org/
 - http://learnopengl.com/
 - https://stackoverflow.com/questions/7536956/opengl-es-2-0-shader-best-practices
-
-
