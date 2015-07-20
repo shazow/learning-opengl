@@ -18,11 +18,6 @@ ifndef LEANPUB_PREVIEW_PDF
 endif
 	curl -L "${LEANPUB_PREVIEW_PDF}" -o preview.pdf
 
-toc: manuscript/README.md
-
-manuscript/README.md: $(BOOKFILES)
-	./mkbook < manuscript/Book.txt > "$@"
-
 combined.md: $(BOOKFILS)
 	echo "title.md" | cat - manuscript/Book.txt | PREFIX="manuscript/" ./mkbook > "$@"
 
