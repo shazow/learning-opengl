@@ -1,0 +1,810 @@
+# Learning OpenGL
+
+By Andrey Petrov (@shazow)
+
+- http://shazow.net/
+- https://twitter.com/shazow
+
+
+## Preface
+
+I'm learning OpenGL using Go 1.5 and `golang.org/x/mobile/gl`, these are my
+notes.
+
+Examples should be mostly-compilable, but sometimes they deviate from the actual
+Go API into an imaginary variant that is closer to the underlying C API (which
+most GL libraries are based on). The goal is to understand how OpenGL works on
+in general, not to learn about quirks of a specific library.
+
+This may be a good primer to go over before diving into a language-specific
+OpenGL tutorial.
+
+References:
+
+- http://docs.gl/ (fast OpenGL API lookup)
+- https://en.wikibooks.org/wiki/OpenGL_Programming
+- https://open.gl/ and https://github.com/zuck/opengl-examples
+- http://www.opengl-tutorial.org/
+- http://learnopengl.com/
+- https://stackoverflow.com/questions/7536956/opengl-es-2-0-shader-best-practices
+
+
+
+
+## Shapes
+
+A vertex is the coordinate of a point. In a three-dimensional context, a vertex
+might look like {1, 2, 3} for x, y, z coordinates. A line is made of two
+vertices, and a triangle is made of three vertices.
+
+When we define vertices, we need to indicate how they should be treated. Whether
+each one is an independent point (`GL_POINTS`) or a line (`GL_LINES`) or more
+commonly, a triangle (`GL_TRIANGLES`).
+
+Triangles are the elementary shapes of GPUs. A square can be constructed with
+two triangles, for example. Some versions of OpenGL drivers know about other
+shapes (such as `GL_QUADS` and `GL_POLYGONS`) but support for them is being
+removed to reduce API complexity.
+
+Another handy benefit of triangles is that moving any vertex on a triangle will
+still keep it as a single-plane triangle (just maybe a different proportion or
+orientation). On the other hand, if you use a quad or complex polygon, then
+moving a vertex can transform it into a multi-plane shape or disturb the
+original properties of the shape, and this can cause unexpected rendering issues
+if we're making assumptions about our shapes. For example, moving a single
+corner of a rectangle will produce a shape that is no longer a rectangle.
+Triangles are always triangles.
+
+When in doubt, use triangles.
+
+Example:
+
+```go
+var triangle = []float32{
+    0.0, 1.0, 0.0, // Top-left
+    0.0, 0.0, 0.0, // Bottom-left
+    1.0, 0.0, 0.0, // Bottom-right
+}
+```
+
+Vertices are defined as an array of floats in *counter-clockwise order*. (By
+default, the [face culling feature](https://www.opengl.org/wiki/Face_Culling)
+is setup to determine the front/back of a shape by assuming that vertices'
+"winding order" is counter-clockwise. This can be changed but it needs to be
+consistent.)
+
+Because it's a single array, not an array of three three-point arrays, we need
+to tell GL how to interpret the array (is it a bunch of 2D coordinates? 3D? is
+there extra texture data?). When we bind our vertices variable into a shader
+attribute, we pass in a size value that tells it how to treat that data.
+
+
+## Shaders
+
+Shaders are programmable pipelines that are compiled into GPU-native
+instructions to be executed en-mass. Shaders can be have variables such as
+`attribute` that can be used as inputs from external code.
+
+There are many versions of OpenGL and thus of the GLSL (OpenGL Shading Language)
+dialect used to program shaders. In fact, there are even two divergent versions:
+*OpenGL* used on personal computers, and *OpenGL ES* (OpenGL for Embedded
+Systems) used on mobile platforms and WebGL. Newer versions of OpenGL and GLSL
+come with newer features, but if platform compatibility is important then use
+the earliest version of GLSL that supports the features needed.
+
+Our examples use `#version 100` that is compatible with OpenGL ES 2.0, which
+should work on WebGL and most mobile platforms.
+
+See:
+
+- https://en.wikipedia.org/wiki/OpenGL_Shading_Language#Versions
+- https://en.wikipedia.org/wiki/OpenGL_ES
+
+### Vertex Shaders
+
+Vertex shaders work by setting the `gl_Position` variable, a [built-in output
+variable](https://www.opengl.org/wiki/Built-in_Variable_(GLSL)), which defines
+the `vec4` position (a 4D vector representing `{X, Y, Z, W}` for where a vertex
+should be rendered.
+
+*Aside: 4D positions are known as Homogeneous Coordinates. The `W` component is
+a normalization value that moves the 3D position away and towards the origin.
+We'll generally leave it at 1.0, but it will be changing as we multiply vectors
+with our modelview projection matrix later.  ([Additional
+reading](http://glprogramming.com/red/appendixf.html))*
+
+Example:
+
+```glsl
+##version 100
+
+attribute vec4 pos;
+
+void main(void) {
+    gl_Position = pos;
+}
+```
+
+In this example, the `pos` variable can be manipulated by the caller.
+
+Vertex shaders are executed for every vertex (usually corners) of a shape. In
+the case of a triangle, it will be three times per triangle.
+
+
+### Fragment Shaders
+
+Fragment shaders work by setting the `gl_FragColor` variable which defines the
+RGBA fill color of the face of a shape (usually a triangle, but sometimes a quad
+or complex polygon);
+
+Example:
+
+```glsl
+##version 100
+
+void main(void) {
+    gl_FragColor = vec4(0.0, 0.0, 1.0, 1.0);
+}
+```
+
+This will fill our shape's face with blue.
+
+Fragment shaders are executed for every fragment of a shape's face, which is
+often as small as a pixel. Fragment shaders do a lot more work than vertex
+shaders, so it's a good idea to pre-compute what we can outside of the fragment
+shader.
+
+
+### Compiling
+
+Once our shaders are defined, we need to [compile, attach, and link them into a
+program](https://en.wikibooks.org/wiki/OpenGL_Programming/Modern_OpenGL_Introduction#GLSL_program).
+
+
+## Rendering Shaders
+
+### Attributes
+
+Interacting with variables inside of shaders is done by referring to the index
+of an attribute. It's like a memory address for the shader variable that we use
+to refer to query and assign values.
+
+We use [`GetAttribLocation`](https://www.opengl.org/sdk/docs/man/html/glGetAttribLocation.xhtml)
+to acquire the index of a variable inside of a vertex shader.
+
+Example:
+
+```go
+var program gl.Program
+var pos gl.Attrib
+...
+// Acquire the index of the `pos` variable inside of our vertex shader
+pos = gl.GetAttribLocation(program, "pos")
+```
+
+When we're ready to set the value, we'll use [`VertexAttribPointer`](https://www.opengl.org/sdk/docs/man/html/glVertexAttribPointer.xhtml).
+but first we need to tell it the shape we're referring to.
+
+
+### Buffers
+
+When we instruct the GPU to render something, we need to tell it what the thing
+looks like. We can do this right as we ask it to render something, or better yet
+we can upload it ahead of time into a buffer and just tell it which buffer to
+refer to.
+
+For example, we can create a vertex buffer object (VBO) to store our shape data
+inside:
+
+```go
+// Allocate a buffer and return the address index
+buf := gl.CreateBuffer()
+
+// Activate the buffer we're referring to for the following instructions
+gl.BindBuffer(gl.ARRAY_BUFFER, buf)
+
+// Upload data to our active buffer
+gl.BufferData(gl.ARRAY_BUFFER, &triangle, gl.STATIC_DRAW)
+```
+
+There are other kinds of buffers we can allocate, like texture buffers. More on
+that below.
+
+
+### Rendering boilerplate
+
+Minimal rendering steps:
+
+1. Set the background color (`ClearColor`).
+1. Choose our compiled GPU program (`UseProgram`).
+1. Upload our triangle vertices to the GPU (`BindBuffer`)
+1. Activate attribute we're referring to (`EnableVertexAttribArray`).
+1. Specify attribute value, configuration, and vertex data (`VertexAttribPointer`).
+1. Draw with a given shape configuration (`DrawArrays`).
+1. Deactivate attribute (`DisableVertexAttribArray`).
+1. Display our new frame buffer.
+
+Altogether, it might look something like this using our imaginary gl package:
+
+```go
+// Reset the canvas background
+gl.ClearColor(1.0, 1.0, 1.0, 1.0) // White background
+gl.Clear(gl.COLOR_BUFFER_BIT)
+
+// Choose our compiled program
+gl.UseProgram(program)
+
+// Activate our pos attribute
+gl.EnableVertexAttribArray(pos)
+
+// Create a fresh a data buffer on the GPU to hold our vertex array
+buf := gl.CreateBuffer()
+
+// Select which buffer we're referring to for the following operations
+gl.BindBuffer(gl.ARRAY_BUFFER, buf)
+
+// Upload triangle data to the active buffer
+gl.BufferData(gl.ARRAY_BUFFER, &triangle, gl.STATIC_DRAW)
+
+// Configure our vertex setup for the elements in our active buffer
+gl.VertexAttribPointer(
+    pos,       // index of the generic vertex attribute to be modified
+    3,         // number of components per generic vertex attribute
+    gl.FLOAT,  // type of each component in the array
+    false,     // whether fixed-point data values should be normalized
+    0,         // stride: byte offset between consecutive generic vertex attributes
+    0,         // offset of the first element in our active buffer
+)
+
+// Push our vertices into the vertex shader, 3 at a time
+gl.DrawArrays(gl.TRIANGLES, 0, 3)
+
+// Done with our active attribute
+gl.DisableVertexAttribArray(pos)
+
+// Swap our frame buffer...
+```
+
+The steps for configuring vertex attributes and drawing arrays can be repeated
+multiple times to draw a complex scene.
+
+Once we're done rendering things, we can clean up using `DeleteProgram` and
+`DeleteBuffers` for our buffers.
+
+Things that can be improved in this example:
+
+- Initialize and upload our buffer data ahead of time so that it's not in our
+  render loop.
+
+
+
+
+## Shader Variables
+
+Ref: https://en.wikibooks.org/wiki/OpenGL_Programming/Modern_OpenGL_Tutorial_03
+
+
+### Attribute
+
+`attribute` variables we can change for every vertex array that we render.
+
+
+### Uniform
+
+`uniform` variables contain global information that is the same across all
+vertex arrays. This can be used to create a global opacity value, or a lighting
+angle. `uniform` variables are set with `Uniform*` functions depending on the
+type.
+
+
+### Varying
+
+`varying` variables can be used to communicate from the vertex shader into the
+fragment shader.
+
+If we have a `varying` variable with the same declaration in both shaders, then
+setting its value in the vertex shader will set it in the fragment shader.
+Because fragment shaders are run on every pixel in the body of a polygon, the
+varying value will be interpolated between the vertex points on the polygon
+creating a gradient.
+
+`varying` variables are set from inside the vertex shader.
+
+
+### Matrix transformations
+
+Shaders support convenient matrix computations but if a translation is going
+to be the same for many vertices then it's better to pre-compute it once and
+pass it in.
+
+When scaling, rotating, and moving a set of vertices in one operation, it's
+important to scale first, rotate second, and move last. In the opposite order,
+the rotation will happen around the origin before moving and scaling.
+
+
+#### Model-View-Projection matrix
+
+Ref: https://en.wikibooks.org/wiki/OpenGL_Programming/Modern_OpenGL_Tutorial_05
+
+To support depth, perspective, and an independent camera, we compute a
+Model-View-Projection (MVP) matrix that we'll use to multiply against vertices
+in our vertex shader.
+
+> To work with multiple objects, and position each object in the 3D world, we compute a transformation matrix that will:
+>
+> - shift from model (object) coordinates to world coordinates (model->world)
+> - then from world coordinates to view (camera) coordinates (world->view)
+> - then from view coordinates to projection (2D screen) coordinates (view->projection)
+
+To compute the projection matrix, we need the field of view, aspect ratio, and
+the clipping planes for near and far. Example:
+
+```go
+matrix.Perspective(
+    0.785,        // fov: 45 degrees = 60-degree horizontal FOV in 4:3 resolution
+    width/height, // aspect ratio of our viewport
+    0.1,  // Near clipping plane
+    10.0, // Far clipping plane
+)
+```
+
+To compute the view matrix, we need the position of the camera, the center of
+the view port, and the upwards vector direction. Example:
+
+```go
+matrix.LookAt(
+    Vec3{3, 3, 3}, // eye: position of the camera
+    Vec3{0, 0, 0}, // center of the viewport
+    Vec3{0, 1, 0}, // up: used to roll the view
+)
+```
+
+*Note: If rotating the viewport upwards, it's important to rotate the up vector
+as well as the center vector. There can be unexpected behaviour if the two
+vectors approach each other.*
+
+To compute the model matrix we need to translate into where we want it to live
+in our world coordinates. For example, if we want to rotate it a bit on the Y
+plane:
+
+```go
+matrix.Rotate(
+    identity,      // center of rotation (e.g. identity matrix)
+    0.3,           // angle in radians
+    Vec3{0, 1, 0}, // plane
+)
+```
+
+Finally, we can pass the MVP either as a single pre-computed `uniform` variable
+or in its various pieces to the vertex shader and multiply the input vertices to
+get the desired result. When dealing with more complicated shaders, the separate
+pieces can be useful individually.
+
+
+## Textures
+
+Ref: https://en.wikibooks.org/wiki/OpenGL_Programming/Modern_OpenGL_Tutorial_06
+
+Textures can be loaded into a buffer, configured, and used on many different
+surfaces. The process is similar to our rendering boilerplate above:
+
+```go
+// Allocate a texture buffer
+texture = gl.CreateTexture()
+
+// TODO: Explain this?
+gl.ActiveTexture(gl.TEXTURE0)
+
+// Select which texture buffer we're referring to
+gl.BindTexture(gl.TEXTURE_2D, texture)
+
+// Set rendering parameters for interpolation, clamping, wrapping, etc.
+gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+// ... 
+
+// Upload image data
+gl.TexImage2D(
+    gl.TEXTURE_2D,      // target
+    0,                  // level
+    img.Rect.Size().X,  // width
+    img.Rect.Size().Y,  // height
+    gl.RGBA,            // format
+    gl.UNSIGNED_BYTE,   // type
+    img.Pix,            // texture image pixel data
+)
+```
+
+Before we can start using the texture in our fragment shader to render onto the
+surface of our shape, we need to communicate the texture coordinates.
+
+To do this, we'll need to update out fragment shader:
+
+```glsl
+##version 100
+
+precision mediump float;
+
+uniform sampler2D tex;
+
+varying vec2 fragTexCoord;
+
+void main() {
+    gl_FragColor = texture2D(tex, fragTexCoord);
+}
+```
+
+We pass in a `varying vec3 fragTexCoord` which we'll set from our vertex shader.
+The `texture2D` function will interpolate values from the image data in `tex`
+based on the vertices we pass in through `fragTexCoord`. Remember how we
+rendered a gradient of colours between vertex values? This does the same thing
+but it uses sampling across image data to get the colour values.
+
+Now, we update our vertex shader to pass in the `fragTexCoord` value:
+
+```glsl
+##version 100
+
+uniform mat4 projection;
+uniform mat4 view;
+uniform mat4 model;
+
+attribute vec3 pos;
+attribute vec2 vertTexCoord;
+
+varying vec2 fragTexCoord;
+
+void main() {
+	fragTexCoord = vertTexCoord;
+    gl_Position = projection * view * model * vec4(pos, 1);
+}
+```
+
+Specifically, note the `fragTexCoord = vertTexCoord;` line, that's how we
+communicate from the vertex shader and into the fragment shader. We'll also need
+to pass in a new attribute into the vertex shader, the `vertTexCoord` value.
+
+The next part is a bit tricky because we need to worry about how the texture is
+clamped to the coordinates we give it, which will also determine its orientation
+and stretching. 
+
+Ref: https://en.wikibooks.org/wiki/OpenGL_Programming/Intermediate/Textures
+
+### UV mapping
+
+Ref: https://en.wikipedia.org/wiki/UV_mapping
+
+Texture coordinates are often specified alongside mesh vertex coordinates.
+Similarly, they are specified as `{X, Y}` coordinates (or `{X, Y, Z}` for 3D)
+but instead use the consecutive letters UVW because the letters XYZ are already
+used for vertices. That is, `{U, V, W}` is `{X, Y, Z}` for texture mapping.
+Sometimes it's referred to as `{TU, TV, TW}` with T-for-texture prefix for
+clarity.
+
+Most 3D modelling tools like Blender will export texture maps alongside the
+object mesh. Usually a 2D texture map is used for a 3D mesh, so an object
+mesh will include the fields `{X, Y, Z, U, V}` where the last two are the
+texture map coordinates for that vertex.
+
+Unlike vector coordinates, the texture coordinates are used by the fragment
+shader so their values are used for the face of the fragment.
+
+
+### Texture mapping
+
+Ref: https://en.wikipedia.org/wiki/Texture_mapping
+
+TODO
+
+
+## Lighting
+
+When doing lighting, you can do the math in the vertex shader (per-vertex
+shading) or in the fragment shader (per-fragment shading).
+
+Per-vertex shading, such as [Gouraud shading](https://en.wikipedia.org/wiki/Gouraud_shading),
+only does the processing per vertex, which is strictly 3 times per triangle, and
+the values between are interpolated by the fragment shader. It's very efficient,
+but the results aren't great. They're especially bad with large polygons.
+
+Per-fragment shading, such as [Phong lighting](https://en.wikipedia.org/wiki/Phong_reflection_model),
+is executing per fragment of a surface. A triangle is divided into many
+fragments, proportional to its size. This method of lighting is more expensive
+to compute, but yields better results and can be combined with things like bump
+mapping.
+
+See also: [Blinn–Phong shading model](https://en.wikipedia.org/wiki/Blinn%E2%80%93Phong_shading_model),
+an improvement over Phong shading.
+
+Ref: http://www.tomdalling.com/blog/modern-opengl/06-diffuse-point-lighting/
+
+Ref: http://www.opengl-tutorial.org/beginners-tutorials/tutorial-8-basic-shading/
+
+
+### Components of lighting
+
+A light's effect on the colour of a pixel is composed of several components:
+
+- Normal vector (or perpendicular vector) of the fragment surface. The intensity
+    of the light is related to the angle of reflection.
+
+- Light position, shape (spot light? ambient light?), and intensity (or RGB
+    values of the light).
+
+- Material of the surface, including the colour, shininess, and possibly other
+    attributes.
+
+A light that is directly perpendicular to the surface will have maximum
+intensity, whereas a light that is acute to the surface will only have a mild
+effect in lighting it up. The normal vector of the surface is used to compute
+this ratio against the position of the light origin. Similarly, the shape of the
+light, such as if it's a cone, will determine how much a fragment is affected by
+it.
+
+The material of the surface determines how much of the light's intensities the
+surface absorbs versus reflects. If it's a very shiny material, then the
+resulting pixel will be more white at the most intense parts. If it's a matte
+surface, then the underlying colour will be highlighted.
+
+
+### Normal mapping
+
+Surface normals of an object don't change, so pre-computing them is a useful
+optimization. When importing an object model, it's common to include the normal
+vectors for every surface.
+
+Ref: http://www.opengl-tutorial.org/intermediate-tutorials/tutorial-13-normal-mapping/
+
+TODO
+
+### Simple lighting shader
+
+The trick to writing a performant yet effective lighting is properly dividing
+the work done by the CPU in the game engine code (once per frame) versus the
+instructions executed in the vertex shader (once per vertex) and fragment shader
+(once per fragment).
+
+TODO
+
+Ref: http://www.opengl-tutorial.org/beginners-tutorials/tutorial-8-basic-shading/
+
+
+
+## Objects & Materials
+
+There are several common object encoding formats used for importing models.
+
+
+### Artisanally hand-crafted matrices
+
+When building our first 3D rendering, it's easiest to just specify a few
+vertices and get on with it. For example, a triangle might look like this:
+
+```go
+var triangle = []float32{
+    // X, Y, Z
+    -1.0, -1.0, 1.0,
+    1.0, -1.0, 1.0,
+    -1.0, 1.0, 1.0,
+```
+
+Or a square, made up of two triangles:
+
+```go
+var square = []float32{
+    // X, Y, Z
+    -1.0, -1.0, 1.0,
+    1.0, -1.0, 1.0,
+    -1.0, 1.0, 1.0,
+    1.0, -1.0, 1.0,
+    1.0, 1.0, 1.0,
+    -1.0, 1.0, 1.0,
+}
+```
+
+That square could be the front face of a cube, if we write up 5 more such
+faces.
+
+Next up, we'll want to define texture coordinates and normal vectors. We can do
+this as separate datasets and use a different buffer for each, or we can
+interleave the data with each vertex which improves the memory locality.
+
+Ref: https://developer.apple.com/library/ios/documentation/3DDrawing/Conceptual/OpenGLES_ProgrammingGuide/TechniquesforWorkingwithVertexData/TechniquesforWorkingwithVertexData.html
+
+#### Interleaving Vertex Blocks
+
+Ref: https://www.opengl.org/wiki/Vertex_Specification_Best_Practices
+
+This is an optional optimization, feel free to skip it if you'd prefer to use
+separate buffers for different data types.
+
+When adding two more sets of columns for textures and normals, it looks like
+this:
+
+```go
+var cube = []float32{
+    // X, Y, Z, TU, TV, NX, NY, NZ
+    ...
+
+	// Front face
+	-1.0, -1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 1.0,
+	1.0, -1.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0,
+	-1.0, 1.0, 1.0, 1.0, 1.0, 0.0, 0.0, 1.0,
+	1.0, -1.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0,
+	1.0, 1.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0,
+	-1.0, 1.0, 1.0, 1.0, 1.0, 0.0, 0.0, 1.0,
+
+    ...
+}
+```
+
+For now, we're going to have the same normal for every vertex on a single face.
+This will give the effect that each polygon is flat, and our lighting equations
+will react accordingly. Later, we'll look at [bump mapping](https://en.wikipedia.org/wiki/Bump_mapping)
+which generates normals for every *fragment* by referring to a bump map texture
+for the values.
+
+The matrix is just a large one-dimensional float array, not a two-dimensional
+thing. This lets us pass in the full matrix as a single buffer to the GPU with a
+specific *size*, *stride*, and *offset*, and it will extract the columns
+appropriately.
+
+```go
+// Activate the buffer that contains our cube data
+gl.BindBuffer(gl.ARRAY_BUFFER, cubeBuffer)
+
+// Configure our vertex setup for the elements in our active buffer
+gl.VertexAttribPointer(
+    attrib,    // attribut we're passing data into (e.g. pos or tex or normal)
+    size,      // number of vertices per row
+    gl.FLOAT,  // type of each component in the array
+    false,     // whether fixed-point data values should be normalized
+    stride,    // stride: byte size of each row
+    offset,    // byte offset of the first element in our active buffer
+)
+```
+
+If our `attrib` is the vertex position (first three columns), then:
+
+```go
+offset = 0               // no offset, the vertex is first
+size = 3                 // 3 columns in our vertex
+stride = 4 * (3 + 2 + 3) // 4 bytes per float * (3d vertex + 2d texture coord + 3d normal)
+```
+
+Or if we're loading our texture map:
+
+```go
+offset = 4 * 3 // 4 bytes per float * 3d vertex
+size = 2       // 2 columns in our texture map (TU, TW)
+```
+
+Or if we're loading our normal map:
+
+```go
+offset = 4 * (3 + 2) // 4 bytes per float * (3d vertex + 2d texture coord)
+size = 3             // 3 columns in our normal map (NX, NY, NYZ)
+```
+
+The stride should stay the same. Remember that the GPU is a massively parallel
+pipeline, so it will want to pass different data to each unit of concurrency to
+be executed simultaneously. To do this, it will need to quickly dispatch whole
+rows so that the parallel execution can begin as early as possible, and using
+the stride to traverse rows is how it can do that.
+
+Ultimately, when we're importing objects, this is the format that we'll end up
+converting our models into before passing them into a GPU buffer.
+
+
+### Wavefront OBJ geometry format
+
+Ref: https://en.wikipedia.org/wiki/Wavefront_.obj_file
+
+Most 3D modeling software (like [Blender](https://en.wikipedia.org/wiki/Blender_(software)))
+know how to export models in OBJ format, and most languages have libraries for
+importing these objects. This is the most common format used in production
+engines.
+
+Ref: http://www.opengl-tutorial.org/beginners-tutorials/tutorial-7-model-loading/
+
+TODO: Talk about materials
+
+
+## Appendix
+
+Things that haven't been fleshed out into chapters yet.
+
+### Index Buffer Objects (IBO)
+
+TODO
+
+Ref: http://openglbook.com/chapter-3-index-buffer-objects-and-primitive-types.html
+
+Ref: http://www.opengl-tutorial.org/intermediate-tutorials/tutorial-9-vbo-indexing/
+
+
+### Freeing resources
+
+Once we're done using our shader program and various buffers, we should delete
+them.
+
+```go
+gl.DeleteProgram(program)
+gl.DeleteBuffer(buf)
+gl.DeleteTexture(texture)
+...
+```
+
+### Camera movement
+
+Ref: https://en.wikibooks.org/wiki/OpenGL_Programming/Modern_OpenGL_Tutorial_Navigation
+
+
+#### Rotations
+
+Remember hearing airplane people talk about roll, pitch, and yaw? Now it's time
+to learn what they mean!
+
+When we're staring at a point, we can rotate our view about three axes (plural
+of axis, huh). We can look up and down, left and right, or tilt it to our sides.
+
+Alright, let's go over these in a bunch of different ways:
+
+- *Pitch*, or "rotate about the X axis", or look up and down.
+- *Yaw", or "rotate about the Y axis", or look left and right.
+- *Roll*, or "rotate about the Z axis", or tilt sideways.
+
+The axis rotation assumes we're using OpenGL's default axis configuration. That
+is, XYZ and positive-Y is upwards.
+
+Roll is often ignored in most game genres (except for flight simulators), but
+it's an important rotation for Virtual Reality--whenever that becomes a thing.
+
+
+#### Mouse Rotations
+
+The simplest way to map mouse motions to camera rotations is to keep track of
+the mouse position coordinate changes between each frame.
+
+TODO: Code example
+
+
+#### Gimbal Lock
+
+When computing camera rotation using separate pitch, yaw, and roll angles (known
+as Euler Angles), we run into problems as the camera spins vertically
+approaching the upwards vector.
+
+If two rotation degrees come get into alignment then one degree of control is
+lost until they're misaligned again. This is called a [Gimbal Lock](https://en.wikipedia.org/wiki/Gimbal_lock).
+
+This can be worked around by intentionally limiting the vertical rotation to
+stop just before the upwards and bottomwards positions, which is a common
+solution for first person shooter games. If you're flying a plane and want to do
+a barrel roll, then that's not going to *fly*.
+
+Another solution to maintaining unrestricted full range of motion at all
+orientations is to represent our rotation as a matrix or a quaternion.
+
+
+### Quaternions
+
+Ah, quaternions. What are they? How do they work? Why does the name sound so
+scary?  Nobody really knows. Okay, some people know. Let's see what we can
+figure out.
+
+Some bookmarks for later:
+
+Ref:
+
+- http://www.ogre3d.org/tikiwiki/Quaternion+and+Rotation+Primer
+- http://content.gpwiki.org/index.php/OpenGL%3aTutorials%3aUsing_Quaternions_to_represent_rotation
+- https://en.wikipedia.org/wiki/Quaternions_and_spatial_rotation
+
+Quaternions *units* are used to represent rotation...
+
+TODO: ...
+
+
+### Model Animation
+
+Ref: http://wiki.polycount.com/wiki/Limb_Topology
