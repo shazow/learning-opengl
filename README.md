@@ -1,4 +1,4 @@
-![https://img.shields.io/badge/license-CC%20BY--NC%20-green.svg](#license)
+[![License](https://img.shields.io/badge/license-CC%20BY--NC%20-green.svg)](#license)
 
 
 # Learning OpenGL
