@@ -97,3 +97,9 @@ TODO: ...
 ## Model Animation
 
 Ref: http://wiki.polycount.com/wiki/Limb_Topology
+
+Ref: https://www.opengl.org/wiki/Skeletal_Animation
+
+## Advanced Lighting
+
+Ref: http://0fps.net/2013/07/03/ambient-occlusion-for-minecraft-like-worlds/

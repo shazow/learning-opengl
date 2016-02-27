@@ -116,7 +116,7 @@ reading](http://glprogramming.com/red/appendixf.html))*
 Example:
 
 ```glsl
-##version 100
+#version 100
 
 attribute vec4 pos;
 
@@ -140,7 +140,7 @@ or complex polygon);
 Example:
 
 ```glsl
-##version 100
+#version 100
 
 void main(void) {
     gl_FragColor = vec4(0.0, 0.0, 1.0, 1.0);
@@ -420,7 +420,7 @@ surface of our shape, we need to communicate the texture coordinates.
 To do this, we'll need to update out fragment shader:
 
 ```glsl
-##version 100
+#version 100
 
 precision mediump float;
 
@@ -442,7 +442,7 @@ but it uses sampling across image data to get the colour values.
 Now, we update our vertex shader to pass in the `fragTexCoord` value:
 
 ```glsl
-##version 100
+#version 100
 
 uniform mat4 projection;
 uniform mat4 view;
